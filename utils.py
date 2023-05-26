@@ -26,3 +26,29 @@ class Env:
         reward = np.matmul(self.a, action) - 0.5 * np.matmul(self.b, action ** 2) - np.max(state[1:] * net_cons)
         return reward
 
+class History :
+    def __init__(self):
+        self.keys = ['state', 'action', 'reward', 'utility']
+        self.history = dict.fromkeys(self.keys)
+
+    def push(self, state, action, reward, utility):
+        if self.history['reward'] is not None:
+            self.history['state'] = np.vstack((self.history['state'], state))
+            self.history['action'] = np.vstack((self.history['action'], action))
+            self.history['reward'] = np.vstack((self.history['reward'], reward))
+            self.history['utility'] = np.vstack((self.history['utility'], utility))
+        else :
+            self.history['state'] = state
+            self.history['action'] = action
+            self.history['reward'] = reward
+            self.history['utility'] = utility
+
+    def sample(self, batch_size):
+        batch = np.random.choice(np.arange(len(self.history['reward'])), size = batch_size, replace = False)
+
+        state_batch = self.history['state'][batch, :]
+        utility_batch = self.history['utility'][batch, :]
+        action_batch = self.history['action'][batch, :]
+        reward_batch = self.history['reward'][batch, :]
+
+        return state_batch, action_batch, reward_batch, utility_batch

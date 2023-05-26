@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from model import NZ_action
+from agent import Agent
 import torch.optim as optim
 from utils import *
 import matplotlib.pyplot as plt
@@ -19,22 +19,163 @@ d_max = 3
 action_dim = len(a)
 
 g_mean = 2
-g_std = 1
+g_std = 2
 
-net_zero_action = NZ_action(d_max, action_dim)
+agent_lr = Agent(d_max, action_dim)
+env = Env([a, b], [g_mean, g_std, 0, 9])
 
-env = Env([a, b], [g_mean, g_std, sum(opt_d_plus), sum(opt_d_minus)])
+epoch_size = 100
+num_epoch = 1000
 
-nz_optim = optim.Adam(net_zero_action.parameters(), 1e-3)
+THL_reward = []
+THL_avg_reward = []
 
-max_iter = 20000
+OPT_reward = []
+OPT_avg_reward = []
+
+d_plus_history = []
+d_minus_history = []
 
 tic = time.perf_counter()
-for i in range(max_iter) :
-    g_n = torch.Tensor(np.array([env.get_next_state()]))
-    n = 1
-    for j in range(5):
-        a_n = 1e-3 * 1 / (n)
+update_count = 1
+interaction = 0
+for epoch in range(num_epoch) :
+    g_n = env.get_next_state()
+    state = np.array([g_n.item(), pi_p, pi_m])
+
+    epoch_reward_thl = 0
+    epoch_reward_opt = 0
+
+    for episode in range(epoch_size) :
+        c_n = 1e-3
+        action = agent_lr.get_action(state)
+        d_n = action.reshape(-1)
+        d_n1 = d_n + np.array([c_n, 0])
+        d_n2 = d_n + np.array([0, c_n])
+
+        r_n = env.get_reward(state, d_n)
+        r_n1 = env.get_reward(state, d_n1)
+        r_n2 = env.get_reward(state, d_n2)
+
+        current_action = np.array([d_n, d_n1, d_n2])
+        current_reward = np.array([r_n, r_n1, r_n2])
+
+        if np.abs(np.sum(action) - state[0]) <= 1e-6 :
+            agent_lr.nz_update(state, current_action, current_reward, update_count)
+        else :
+            agent_lr.thresh_update(state, current_action, current_reward, update_count)
+
+
+        if state[0] < sum(opt_d_plus) :
+            action_opt = opt_d_plus
+        elif state[0] > sum(opt_d_minus) :
+            action_opt = opt_d_minus
+        else :
+            action_opt = opt_d_plus + 0.5 * (state[0] - sum(opt_d_plus))
+        reward_opt = env.get_reward(state, action_opt)
+
+        g_n = env.get_next_state()
+        state = np.array([g_n.item(), pi_p, pi_m])
+
+        epoch_reward_thl += r_n
+        epoch_reward_opt += reward_opt
+        interaction += 1
+        if interaction % 50 == 1:
+            d_plus_history.append(agent_lr.policy.d_plus)
+            d_minus_history.append(agent_lr.policy.d_minus)
+
+    THL_reward.append(epoch_reward_thl)
+    OPT_reward.append(epoch_reward_opt)
+
+    THL_avg_reward.append(np.mean(THL_reward[-100:]))
+    OPT_avg_reward.append(np.mean(OPT_reward[-100:]))
+
+    if epoch % 50 == 49 :
+        toc = time.perf_counter()
+        print('1 Epoch running time : {0:.4f} (s)'.format(toc - tic))
+        print('Epoch : {0}, Threshold_learning : {1:.4f}, Optimal_avg_reward : {2:.4f}'.format(
+            epoch, THL_avg_reward[-1], OPT_avg_reward[-1]))
+        tic = time.perf_counter()
+
+
+d_minus_history = np.vstack(d_minus_history)
+d_plus_history = np.vstack(d_plus_history)
+
+plt.plot(np.arange(0, interaction, 50), d_plus_history[:,0])
+plt.plot(np.arange(0, interaction, 50), np.ones(int(interaction/50)) * opt_d_plus[0])
+plt.title('Threshold learning trajectory')
+plt.xlabel('Interactions')
+plt.ylabel('$d_1^+$')
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, interaction, 50), d_plus_history[:,1])
+plt.plot(np.arange(0, interaction, 50), np.ones(int(interaction/50)) * opt_d_plus[1])
+plt.title('Threshold learning trajectory')
+plt.xlabel('Interactions')
+plt.ylabel('$d_2^+$')
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, interaction, 50), d_minus_history[:,0])
+plt.plot(np.arange(0, interaction, 50), np.ones(int(interaction/50))* opt_d_minus[0])
+plt.title('Threshold learning trajectory')
+plt.xlabel('Interactions')
+plt.ylabel('$d_1^-$')
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, interaction, 50), d_minus_history[:,1])
+plt.plot(np.arange(0, interaction, 50), np.ones(int(interaction/50)) * opt_d_minus[1])
+plt.title('Threshold learning trajectory')
+plt.xlabel('Interactions')
+plt.ylabel('$d_2^-$')
+plt.grid()
+plt.show()
+
+nsmoothed_curve_thl = np.array([])
+nsmoothed_curve_opt = np.array([])
+for i in range(num_epoch) :
+    nsmoothed_curve_thl = np.append(nsmoothed_curve_thl, np.mean(THL_avg_reward[np.maximum(i -10, 0):i + 1]))
+    nsmoothed_curve_opt = np.append(nsmoothed_curve_opt, np.mean(OPT_avg_reward[np.maximum(i-10, 0):i + 1]))
+plt.plot(np.arange(0, interaction, epoch_size),nsmoothed_curve_thl, label = 'Threshold_learning')
+plt.plot(np.arange(0, interaction, epoch_size),nsmoothed_curve_opt, label = 'OPT')
+plt.legend()
+plt.xlabel('Step')
+plt.ylabel('Performance')
+plt.grid()
+plt.show()
+
+regret_thl = np.abs(nsmoothed_curve_opt - nsmoothed_curve_thl) / nsmoothed_curve_opt * 100
+plt.plot(np.arange(0, interaction, epoch_size),regret_thl)
+plt.ylim(top = 0.1, bottom = 0)
+plt.grid()
+plt.show()
+
+x = np.arange(0, 8, 0.01)
+z = []
+for i in range(len(x)) :
+    z.append(agent_lr.get_action(np.array([x[i], pi_p, pi_m])))
+
+opt_action = opt_d_plus + (x.reshape(-1,1) - sum(opt_d_plus)) * (opt_d_minus - opt_d_plus) / (sum(opt_d_minus) - sum(opt_d_plus))
+opt_action = np.maximum(np.minimum(opt_action, opt_d_minus), opt_d_plus)
+
+
+plt.plot(x, z[:,0], label = 'Learned policy')
+plt.plot(x, opt_action[:,0], label = 'OPT')
+plt.grid()
+plt.legend()
+plt.show()
+
+plt.plot(x, z[:,1], label = 'Learned policy')
+plt.plot(x, opt_action[:,1], label = 'OPT')
+plt.grid()
+plt.legend()
+plt.show()
+
+'''
+    for j in range(1):
+        a_n = 1e-3 * 1 / (1 + (i // 5000))
         c_n = 1e-3 * 1 / (n) ** (1 / 3)
         action = net_zero_action.forward(g_n)
         d_n = action.view(-1)
@@ -97,4 +238,5 @@ plt.legend()
 plt.grid()
 plt.show()
 
-np.mean(np.abs(z - opt_d_nz)) * 100
+print(np.mean(np.abs(z - opt_d_nz)) * 100)
+'''
