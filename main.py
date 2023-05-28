@@ -148,7 +148,6 @@ plt.show()
 
 regret_thl = np.abs(nsmoothed_curve_opt - nsmoothed_curve_thl) / nsmoothed_curve_opt * 100
 plt.plot(np.arange(0, interaction, epoch_size),regret_thl)
-plt.ylim(top = 0.1, bottom = 0)
 plt.grid()
 plt.show()
 
