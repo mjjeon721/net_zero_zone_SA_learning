@@ -25,7 +25,7 @@ env = Env([a, b], [g_mean, g_std, 0, 9])
 agent_lr = Agent(d_max, action_dim, env)
 
 epoch_size = 100
-num_epoch = 2000
+num_epoch = 3000
 
 THL_reward = []
 THL_avg_reward = []

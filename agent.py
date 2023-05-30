@@ -45,12 +45,12 @@ class Agent():
             self.policy.d_plus = self.policy.d_plus + lr * dr
 
     def nz_update(self,current_state, current_action, current_reward, update_count):
-        a_n = 1e-4 / (1 + update_count)  #* 1 / (1 + 0.1 * (update_count // 10000))
-        c_n = 1e-4 / (1 + update_count) ** (1/6)
+        a_n = 1e-4 / (1 + update_count) ** (0.5)  #* 1 / (1 + 0.1 * (update_count // 10000))
+        c_n = 1e-4 / (1 + update_count) ** (0.2)
         vecs = []
         for param in self.policy.parameters():
-            vec = c_n * (torch.rand(param.size()) * 2 - 1)
-            #vec = c_n * (torch.Tensor(npr.binomial(1, 0.5, param.size())) * 2 -1)
+            #vec = c_n * (torch.rand(param.size()) * 2 - 1)
+            vec = c_n * (torch.Tensor(npr.binomial(1, 0.5, param.size())) * 2 -1) * (torch.rand(param.size()) + 0.5)
             param.data.add_(vec)
             vecs.append(vec)
 
@@ -67,7 +67,7 @@ class Agent():
         i = 0
         for param in self.policy.parameters():
             vec = vecs[i]
-            grad_est = a_n * (r_plus - r_minus) / (1e-10 + vec) / 2
+            grad_est = a_n * (r_plus - r_minus) / (vec) / 2
             self.grad_history[i] = 0.99 * self.grad_history[i] + 0.01 * grad_est
             param.data.add_(vec + self.grad_history[i])
             if np.isinf(np.max(param.data.detach().numpy())) :
