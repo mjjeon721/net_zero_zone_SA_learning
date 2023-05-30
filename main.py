@@ -1,3 +1,5 @@
+import copy
+
 import torch
 import numpy as np
 from agent import Agent
@@ -50,9 +52,15 @@ for epoch in range(num_epoch) :
         c_n = 1e-3
         action = agent_lr.get_action(state)
         d_n = action.reshape(-1)
-        if all(np.isnan(d_n)) :
-            agent_lr.get_action(state)
+        r_n = env.get_reward(state, d_n)
+        if all(np.isnan(d_n)):
             raise Exception('Encountered nan')
+        if state[0] < np.sum(agent_lr.policy.d_plus) or state[0] > np.sum(agent_lr.policy.d_minus) :
+            agent_lr.thresh_update(state, interaction)
+        else :
+            agent_lr.nz_update(state, interaction)
+
+        '''
         d_n1 = d_n + np.array([c_n, 0])
         d_n2 = d_n + np.array([0, c_n])
 
@@ -62,12 +70,11 @@ for epoch in range(num_epoch) :
 
         current_action = np.array([d_n, d_n1, d_n2])
         current_reward = np.array([r_n, r_n1, r_n2])
-
         if np.abs(np.sum(action) - state[0]) <= 1e-6 :
-            agent_lr.nz_update(state, current_action, current_reward, interaction)
+            agent_lr.nz_update(state, d_n, current_reward, interaction)
         else :
-            agent_lr.thresh_update(state, current_action, current_reward, update_count)
-
+            agent_lr.thresh_update(state, d_n, current_reward, update_count)
+        '''
 
         if state[0] < sum(opt_d_plus) :
             action_opt = opt_d_plus
@@ -83,9 +90,9 @@ for epoch in range(num_epoch) :
         epoch_reward_thl += r_n
         epoch_reward_opt += reward_opt
         interaction += 1
-        if interaction % 50 == 1:
-            d_plus_history.append(agent_lr.policy.d_plus)
-            d_minus_history.append(agent_lr.policy.d_minus)
+        if interaction % 20 == 1:
+            d_plus_history.append(copy.copy(agent_lr.policy.d_plus))
+            d_minus_history.append(copy.copy(agent_lr.policy.d_minus))
 
     THL_reward.append(epoch_reward_thl)
     OPT_reward.append(epoch_reward_opt)
@@ -104,32 +111,32 @@ for epoch in range(num_epoch) :
 d_minus_history = np.vstack(d_minus_history)
 d_plus_history = np.vstack(d_plus_history)
 
-plt.plot(np.arange(0, interaction, 50), d_plus_history[:,0])
-plt.plot(np.arange(0, interaction, 50), np.ones(int(interaction/50)) * opt_d_plus[0])
+plt.plot(np.arange(0, interaction, 20), d_plus_history[:,0])
+plt.plot(np.arange(0, interaction, 20), np.ones(int(interaction/20)) * opt_d_plus[0])
 plt.title('Threshold learning trajectory')
 plt.xlabel('Interactions')
 plt.ylabel('$d_1^+$')
 plt.grid()
 plt.show()
 
-plt.plot(np.arange(0, interaction, 50), d_plus_history[:,1])
-plt.plot(np.arange(0, interaction, 50), np.ones(int(interaction/50)) * opt_d_plus[1])
+plt.plot(np.arange(0, interaction, 20), d_plus_history[:,1])
+plt.plot(np.arange(0, interaction, 20), np.ones(int(interaction/20)) * opt_d_plus[1])
 plt.title('Threshold learning trajectory')
 plt.xlabel('Interactions')
 plt.ylabel('$d_2^+$')
 plt.grid()
 plt.show()
 
-plt.plot(np.arange(0, interaction, 50), d_minus_history[:,0])
-plt.plot(np.arange(0, interaction, 50), np.ones(int(interaction/50))* opt_d_minus[0])
+plt.plot(np.arange(0, interaction, 20), d_minus_history[:,0])
+plt.plot(np.arange(0, interaction, 20), np.ones(int(interaction/20))* opt_d_minus[0])
 plt.title('Threshold learning trajectory')
 plt.xlabel('Interactions')
 plt.ylabel('$d_1^-$')
 plt.grid()
 plt.show()
 
-plt.plot(np.arange(0, interaction, 50), d_minus_history[:,1])
-plt.plot(np.arange(0, interaction, 50), np.ones(int(interaction/50)) * opt_d_minus[1])
+plt.plot(np.arange(0, interaction, 20), d_minus_history[:,1])
+plt.plot(np.arange(0, interaction, 20), np.ones(int(interaction/20)) * opt_d_minus[1])
 plt.title('Threshold learning trajectory')
 plt.xlabel('Interactions')
 plt.ylabel('$d_2^-$')

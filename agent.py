@@ -23,6 +23,7 @@ class Agent():
         #self.history = History()
         self.policy_optim = optim.Adam(self.policy.parameters(), 1e-3)
         self.grad_history = []
+        self.thresh_grad_history = np.zeros((2,action_dim))
         for param in self.policy.parameters():
             self.grad_history.append(torch.zeros(param.size()))
     def get_action(self, state) :
@@ -32,19 +33,31 @@ class Agent():
             state = torch.Tensor(np.array([state[0]])).view(-1)
             return self.policy.nz_action(state).detach().numpy()
 
-    def thresh_update(self, current_state, current_action, current_reward, update_count):
-        lr = 1e-3 * 1 / (1 + 0.1 * (update_count // 10000))
+    def thresh_update(self, state,  update_count):
+        a_n = 1e-2 / (1 + update_count) ** (0.2)
+        c_n = 1e-2 / (1 + update_count) ** (0.02)
 
-        c_n = current_action[1,0] - current_action[0,0]
+        if state[0] < np.sum(self.policy.d_plus) :
+            vec = c_n * (npr.binomial(1, 0.5, self.action_dim) * 2 - 1) * (npr.rand(self.action_dim) + 0.5)
+            d1 = self.policy.d_plus.reshape(-1) + vec
+            d2 = self.policy.d_plus.reshape(-1) - vec
+            r1 = self.env.get_reward(state, d1)
+            r2 = self.env.get_reward(state, d2)
+            grad_est = (r1 - r2) / vec / 2
+            self.thresh_grad_history[0,:] = self.thresh_grad_history[0,:] * 0.9 + 0.1 * grad_est
+            self.policy.d_plus += a_n * grad_est#self.thresh_grad_history[0,:]
 
-        dr = np.array([(current_reward[1] - current_reward[0]) / c_n, (current_reward[2] - current_reward[0]) / c_n])
-
-        if current_state[0] > sum(current_action[0,:]) :
-            self.policy.d_minus = self.policy.d_minus + lr * dr
         else :
-            self.policy.d_plus = self.policy.d_plus + lr * dr
+            vec = c_n * (npr.binomial(1, 0.5, self.action_dim) * 2 - 1) * (npr.rand(self.action_dim) + 0.5)
+            d1 = self.policy.d_minus.reshape(-1) + vec
+            d2 = self.policy.d_minus.reshape(-1) - vec
+            r1 = self.env.get_reward(state, d1)
+            r2 = self.env.get_reward(state, d2)
+            grad_est = (r1 - r2) / vec / 2
+            self.thresh_grad_history[1, :] = self.thresh_grad_history[1, :] * 0.99 + 0.01 * grad_est
+            self.policy.d_minus += a_n * grad_est#self.thresh_grad_history[1,:]
 
-    def nz_update(self,current_state, current_action, current_reward, update_count):
+    def nz_update(self,current_state, update_count):
         a_n = 1e-4 / (1 + update_count) ** (0.5)  #* 1 / (1 + 0.1 * (update_count // 10000))
         c_n = 1e-4 / (1 + update_count) ** (0.2)
         vecs = []
@@ -67,9 +80,9 @@ class Agent():
         i = 0
         for param in self.policy.parameters():
             vec = vecs[i]
-            grad_est = a_n * (r_plus - r_minus) / (vec) / 2
+            grad_est = (r_plus - r_minus) / (vec) / 2
             self.grad_history[i] = 0.99 * self.grad_history[i] + 0.01 * grad_est
-            param.data.add_(vec + self.grad_history[i])
+            param.data.add_(vec + a_n * self.grad_history[i])
             if np.isinf(np.max(param.data.detach().numpy())) :
                 raise Exception('Encountered infinite gradient')
             i += 1
