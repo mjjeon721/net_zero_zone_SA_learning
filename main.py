@@ -21,11 +21,11 @@ action_dim = len(a)
 g_mean = 2
 g_std = 2
 
-agent_lr = Agent(d_max, action_dim)
 env = Env([a, b], [g_mean, g_std, 0, 9])
+agent_lr = Agent(d_max, action_dim, env)
 
 epoch_size = 100
-num_epoch = 1000
+num_epoch = 2000
 
 THL_reward = []
 THL_avg_reward = []
@@ -50,6 +50,9 @@ for epoch in range(num_epoch) :
         c_n = 1e-3
         action = agent_lr.get_action(state)
         d_n = action.reshape(-1)
+        if all(np.isnan(d_n)) :
+            agent_lr.get_action(state)
+            raise Exception('Encountered nan')
         d_n1 = d_n + np.array([c_n, 0])
         d_n2 = d_n + np.array([0, c_n])
 
@@ -61,7 +64,7 @@ for epoch in range(num_epoch) :
         current_reward = np.array([r_n, r_n1, r_n2])
 
         if np.abs(np.sum(action) - state[0]) <= 1e-6 :
-            agent_lr.nz_update(state, current_action, current_reward, update_count)
+            agent_lr.nz_update(state, current_action, current_reward, interaction)
         else :
             agent_lr.thresh_update(state, current_action, current_reward, update_count)
 
@@ -90,7 +93,7 @@ for epoch in range(num_epoch) :
     THL_avg_reward.append(np.mean(THL_reward[-100:]))
     OPT_avg_reward.append(np.mean(OPT_reward[-100:]))
 
-    if epoch % 50 == 49 :
+    if epoch % 100 == 99 :
         toc = time.perf_counter()
         print('1 Epoch running time : {0:.4f} (s)'.format(toc - tic))
         print('Epoch : {0}, Threshold_learning : {1:.4f}, Optimal_avg_reward : {2:.4f}'.format(
@@ -159,6 +162,7 @@ for i in range(len(x)) :
 opt_action = opt_d_plus + (x.reshape(-1,1) - sum(opt_d_plus)) * (opt_d_minus - opt_d_plus) / (sum(opt_d_minus) - sum(opt_d_plus))
 opt_action = np.maximum(np.minimum(opt_action, opt_d_minus), opt_d_plus)
 
+z = np.vstack(z)
 
 plt.plot(x, z[:,0], label = 'Learned policy')
 plt.plot(x, opt_action[:,0], label = 'OPT')
