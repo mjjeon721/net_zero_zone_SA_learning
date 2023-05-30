@@ -1,5 +1,4 @@
 import copy
-
 import torch
 import numpy as np
 from agent import Agent
@@ -7,6 +6,7 @@ import torch.optim as optim
 from utils import *
 import matplotlib.pyplot as plt
 import time
+from scipy.stats import truncnorm
 
 a = np.array([3, 2.4])
 b = np.array([1, 1])
@@ -20,14 +20,21 @@ opt_d_minus = (a - pi_m) / b
 d_max = 3
 action_dim = len(a)
 
-g_mean = 2
+g_mean = 4
 g_std = 2
 
 env = Env([a, b], [g_mean, g_std, 0, 9])
 agent_lr = Agent(d_max, action_dim, env)
 
+#g_low = 0
+#g_high = 9
+
+#low = (g_low - g_mean) / g_std
+#high = (g_high - g_mean) / g_std
+#truncnorm.rvs(low, high, loc = g_mean, scale = g_std, size = 1)
+
 epoch_size = 100
-num_epoch = 3000
+num_epoch = 2000
 
 THL_reward = []
 THL_avg_reward = []
@@ -40,6 +47,9 @@ d_minus_history = []
 
 tic = time.perf_counter()
 update_count = 1
+d_plus_update_count = 0
+d_minus_update_count = 0
+nz_update_count = 0
 interaction = 0
 for epoch in range(num_epoch) :
     g_n = env.get_next_state()
@@ -55,10 +65,15 @@ for epoch in range(num_epoch) :
         r_n = env.get_reward(state, d_n)
         if all(np.isnan(d_n)):
             raise Exception('Encountered nan')
-        if state[0] < np.sum(agent_lr.policy.d_plus) or state[0] > np.sum(agent_lr.policy.d_minus) :
-            agent_lr.thresh_update(state, interaction)
+        if state[0] < np.sum(agent_lr.policy.d_plus) :
+            agent_lr.d_plus_update(state, d_plus_update_count)
+            d_plus_update_count += 1
+        elif state[0] > np.sum(agent_lr.policy.d_minus):
+            agent_lr.d_minus_update(state, d_minus_update_count)
+            d_minus_update_count += 1
         else :
-            agent_lr.nz_update(state, interaction)
+            nz_update_count += 1
+            agent_lr.nz_update(state, nz_update_count)
 
         '''
         d_n1 = d_n + np.array([c_n, 0])

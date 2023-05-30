@@ -33,29 +33,32 @@ class Agent():
             state = torch.Tensor(np.array([state[0]])).view(-1)
             return self.policy.nz_action(state).detach().numpy()
 
-    def thresh_update(self, state,  update_count):
+    def d_plus_update(self, state,  update_count):
         a_n = 1e-2 / (1 + update_count) ** (0.2)
         c_n = 1e-2 / (1 + update_count) ** (0.02)
 
-        if state[0] < np.sum(self.policy.d_plus) :
-            vec = c_n * (npr.binomial(1, 0.5, self.action_dim) * 2 - 1) * (npr.rand(self.action_dim) + 0.5)
-            d1 = self.policy.d_plus.reshape(-1) + vec
-            d2 = self.policy.d_plus.reshape(-1) - vec
-            r1 = self.env.get_reward(state, d1)
-            r2 = self.env.get_reward(state, d2)
-            grad_est = (r1 - r2) / vec / 2
-            self.thresh_grad_history[0,:] = self.thresh_grad_history[0,:] * 0.9 + 0.1 * grad_est
-            self.policy.d_plus += a_n * grad_est#self.thresh_grad_history[0,:]
+        vec = c_n * (npr.binomial(1, 0.5, self.action_dim) * 2 - 1) * (npr.rand(self.action_dim) + 0.5)
+        d1 = self.policy.d_plus.reshape(-1) + vec
+        d2 = self.policy.d_plus.reshape(-1) - vec
+        r1 = self.env.get_reward(state, d1)
+        r2 = self.env.get_reward(state, d2)
+        grad_est = (r1 - r2) / vec / 2
+        self.thresh_grad_history[0,:] = self.thresh_grad_history[0,:] * 0.9 + 0.1 * grad_est
+        self.policy.d_plus += a_n * self.thresh_grad_history[0,:]
 
-        else :
-            vec = c_n * (npr.binomial(1, 0.5, self.action_dim) * 2 - 1) * (npr.rand(self.action_dim) + 0.5)
-            d1 = self.policy.d_minus.reshape(-1) + vec
-            d2 = self.policy.d_minus.reshape(-1) - vec
-            r1 = self.env.get_reward(state, d1)
-            r2 = self.env.get_reward(state, d2)
-            grad_est = (r1 - r2) / vec / 2
-            self.thresh_grad_history[1, :] = self.thresh_grad_history[1, :] * 0.99 + 0.01 * grad_est
-            self.policy.d_minus += a_n * grad_est#self.thresh_grad_history[1,:]
+
+    def d_minus_update(self, state, update_count):
+        a_n = 1e-2 / (1 + update_count) ** (0.2)
+        c_n = 1e-2 / (1 + update_count) ** (0.02)
+
+        vec = c_n * (npr.binomial(1, 0.5, self.action_dim) * 2 - 1) * (npr.rand(self.action_dim) + 0.5)
+        d1 = self.policy.d_minus.reshape(-1) + vec
+        d2 = self.policy.d_minus.reshape(-1) - vec
+        r1 = self.env.get_reward(state, d1)
+        r2 = self.env.get_reward(state, d2)
+        grad_est = (r1 - r2) / vec / 2
+        self.thresh_grad_history[1, :] = self.thresh_grad_history[1, :] * 0.99 + 0.01 * grad_est
+        self.policy.d_minus += a_n * self.thresh_grad_history[1,:]
 
     def nz_update(self,current_state, update_count):
         a_n = 1e-4 / (1 + update_count) ** (0.5)  #* 1 / (1 + 0.1 * (update_count // 10000))
