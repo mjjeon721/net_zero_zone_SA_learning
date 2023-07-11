@@ -34,8 +34,8 @@ class Agent():
             return self.policy.nz_action(state).detach().numpy()
 
     def d_plus_update(self, state,  update_count):
-        a_n = 1e-2 / (1 + update_count) ** (0.2)
-        c_n = 1e-2 / (1 + update_count) ** (0.02)
+        a_n = 1e-2 / (1 + update_count // 100) ** (0.7502)
+        c_n = 1e-2 / (1 + update_count // 100) ** (0.25)
 
         vec = c_n * (npr.binomial(1, 0.5, self.action_dim) * 2 - 1) * (npr.rand(self.action_dim) + 0.5)
         d1 = self.policy.d_plus.reshape(-1) + vec
@@ -48,8 +48,8 @@ class Agent():
 
 
     def d_minus_update(self, state, update_count):
-        a_n = 1e-2 / (1 + update_count) ** (0.2)
-        c_n = 1e-2 / (1 + update_count) ** (0.02)
+        a_n = 1e-2 / (1 + update_count // 100) ** (0.7502)
+        c_n = 1e-2 / (1 + update_count // 100) ** (0.25)
 
         vec = c_n * (npr.binomial(1, 0.5, self.action_dim) * 2 - 1) * (npr.rand(self.action_dim) + 0.5)
         d1 = self.policy.d_minus.reshape(-1) + vec
@@ -61,8 +61,8 @@ class Agent():
         self.policy.d_minus += a_n * self.thresh_grad_history[1,:]
 
     def nz_update(self,current_state, update_count):
-        a_n = 1e-4 / (1 + update_count) ** (0.5)  #* 1 / (1 + 0.1 * (update_count // 10000))
-        c_n = 1e-4 / (1 + update_count) ** (0.2)
+        a_n = 1e-4 / (1 + update_count // 100) ** (0.7502)  #* 1 / (1 + 0.1 * (update_count // 10000))
+        c_n = 1e-4 / (1 + update_count // 100) ** (0.25)
         vecs = []
         for param in self.policy.parameters():
             #vec = c_n * (torch.rand(param.size()) * 2 - 1)

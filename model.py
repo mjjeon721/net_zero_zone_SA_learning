@@ -23,7 +23,7 @@ class Thresh_pol(nn.Module) :
             Explanation : Learning net-zero zone network using SA (Stochastic Approximation) for the reward gradient estimation.
             Updating network parameter using gradient ascent of reward function.
     '''
-    def __init__(self, d_max, action_dim, hidden1 = 100, hidden2 = 64):
+    def __init__(self, d_max, action_dim, hidden1 = 256, hidden2 = 256):
         super(Thresh_pol, self).__init__()
         self.d_max = d_max
         self.action_dim = action_dim

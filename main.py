@@ -34,7 +34,7 @@ agent_lr = Agent(d_max, action_dim, env)
 #truncnorm.rvs(low, high, loc = g_mean, scale = g_std, size = 1)
 
 epoch_size = 100
-num_epoch = 2000
+num_epoch = 1000
 
 THL_reward = []
 THL_avg_reward = []
@@ -122,7 +122,7 @@ for epoch in range(num_epoch) :
             epoch, THL_avg_reward[-1], OPT_avg_reward[-1]))
         tic = time.perf_counter()
 
-
+'''
 d_minus_history = np.vstack(d_minus_history)
 d_plus_history = np.vstack(d_plus_history)
 
@@ -172,7 +172,7 @@ plt.grid()
 plt.show()
 
 regret_thl = np.abs(nsmoothed_curve_opt - nsmoothed_curve_thl) / nsmoothed_curve_opt * 100
-plt.plot(np.arange(0, interaction, epoch_size),regret_thl)
+plt.plot(np.arange(10000, interaction, epoch_size),regret_thl[100:])
 plt.grid()
 plt.show()
 
@@ -198,7 +198,6 @@ plt.grid()
 plt.legend()
 plt.show()
 
-'''
     for j in range(1):
         a_n = 1e-3 * 1 / (1 + (i // 5000))
         c_n = 1e-3 * 1 / (n) ** (1 / 3)
